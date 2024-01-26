@@ -176,6 +176,8 @@ def main(args):
 
     # run inference
     start = time.time()
+    gpu_computing_time = 0
+    gpu_computing_post_time = 0
     for i, (images, targets) in enumerate(data_loader):
         # get images and captions
         images = images.tensors.to(args.device)
@@ -183,20 +185,26 @@ def main(args):
         input_captions = [caption] * bs
 
         # feed to the model
+        t0 = time.time()
         outputs = model(images, captions=input_captions)
+        t1 = time.time()
 
         orig_target_sizes = torch.stack(
             [t["orig_size"] for t in targets], dim=0).to(images.device)
         results = postprocessor(outputs, orig_target_sizes)
+        t2 = time.time()
+
         cocogrounding_res = {
             target["image_id"]: output for target, output in zip(targets, results)}
         evaluator.update(cocogrounding_res)
-
+        
+        gpu_computing_time += (t1 - t0)
+        gpu_computing_post_time += (t2 - t0)
         if (i+1) % 30 == 0:
             used_time = time.time() - start
             eta = len(data_loader) / (i+1e-5) * used_time - used_time
             print(
-                f"processed {i}/{len(data_loader)} images. time: {used_time:.2f}s, ETA: {eta:.2f}s")
+                f"processed {i}/{len(data_loader)} images. time: {used_time:.2f}s, ETA: {eta:.2f}s. gpu_computing_time={gpu_computing_time:.2f}s gpu_computing_postprocess_time={gpu_computing_post_time:.2f}")
 
     evaluator.synchronize_between_processes()
     evaluator.accumulate()
