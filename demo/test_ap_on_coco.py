@@ -197,14 +197,14 @@ def main(args):
         cocogrounding_res = {
             target["image_id"]: output for target, output in zip(targets, results)}
         evaluator.update(cocogrounding_res)
-        
+
         gpu_computing_time += (t1 - t0)
         gpu_computing_post_time += (t2 - t0)
         if (i+1) % 30 == 0:
             used_time = time.time() - start
             eta = len(data_loader) / (i+1e-5) * used_time - used_time
             print(
-                f"processed {i}/{len(data_loader)} images. time: {used_time:.2f}s, ETA: {eta:.2f}s. gpu_computing_time={gpu_computing_time:.2f}s gpu_computing_postprocess_time={gpu_computing_post_time:.2f}")
+                f"processed {i}/{len(data_loader)} images. time: {used_time:.2f}s, ETA: {eta:.2f}s. gpu_computing_postprocess_time={gpu_computing_post_time:.2f} gpu_computing_time={gpu_computing_time:.2f}s")
 
     evaluator.synchronize_between_processes()
     evaluator.accumulate()
