@@ -177,6 +177,7 @@ def test_ap_on_coco():
         start = time.time()
         gpu_computing_time = 0
         gpu_computing_post_time = 0
+        N = len(data_loader)
         for i, (images, targets) in enumerate(data_loader):
             # get images and captions
             images = images.tensors.to(args.device)
@@ -186,7 +187,8 @@ def test_ap_on_coco():
             # feed to the model
             t0 = time.time()
             # actually prompt can be tokenized outside this for-loop
-            inputs = preprocess_prompt(prompt=input_captions, tokenizer=tokenizer)
+            inputs = preprocess_prompt(
+                prompt=input_captions, tokenizer=tokenizer)
             inputs["samples"] = images
             inputs = {name: to_numpy(value) for name, value in inputs.items()}
             # tensorrt doesn't support int64, so convert it to int32
@@ -195,7 +197,8 @@ def test_ap_on_coco():
             outputs = runner.infer(inputs)
             t1 = time.time()
             # map output tensor name, append 'pred_' prefix, and convert to torch.array
-            outputs = {f"pred_{name}": torch.from_numpy(value).to(args.device) for name, value in outputs.items()}
+            outputs = {f"pred_{name}": torch.from_numpy(value).to(
+                args.device) for name, value in outputs.items()}
 
             orig_target_sizes = torch.stack(
                 [t["orig_size"] for t in targets], dim=0).to(images.device)
@@ -210,10 +213,14 @@ def test_ap_on_coco():
             gpu_computing_post_time += (t2 - t0)
             if (i+1) % 30 == 0:
                 used_time = time.time() - start
-                eta = len(data_loader) / (i+1e-5) * used_time - used_time
+                eta = N / (i+1e-5) * used_time - used_time
                 print(
-                    f"processed {i}/{len(data_loader)} images. time: {used_time:.2f}s, ETA: {eta:.2f}s. gpu_computing_postprocess_time={gpu_computing_post_time:.2f} gpu_computing_time={gpu_computing_time:.2f}s")
+                    f"processed {i}/{N} images. time: {used_time:.2f}s, ETA: {eta:.2f}s. gpu_computing_postprocess_time={gpu_computing_post_time:.2f} gpu_computing_time={gpu_computing_time:.2f}s")
 
+            if i + 1 == N:
+                used_time = time.time() - start
+                print(
+                    f'time cost per image: all={used_time/N:.4f} gpu_computing_postprocess_time={gpu_computing_post_time/N:.4f} gpu_computing_time={gpu_computing_time/N:.4f}s')
         evaluator.synchronize_between_processes()
         evaluator.accumulate()
         evaluator.summarize()

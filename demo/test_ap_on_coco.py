@@ -178,6 +178,7 @@ def main(args):
     start = time.time()
     gpu_computing_time = 0
     gpu_computing_post_time = 0
+    N = len(data_loader)
     for i, (images, targets) in enumerate(data_loader):
         # get images and captions
         images = images.tensors.to(args.device)
@@ -202,10 +203,13 @@ def main(args):
         gpu_computing_post_time += (t2 - t0)
         if (i+1) % 30 == 0:
             used_time = time.time() - start
-            eta = len(data_loader) / (i+1e-5) * used_time - used_time
+            eta = N / (i+1e-5) * used_time - used_time
             print(
-                f"processed {i}/{len(data_loader)} images. time: {used_time:.2f}s, ETA: {eta:.2f}s. gpu_computing_postprocess_time={gpu_computing_post_time:.2f} gpu_computing_time={gpu_computing_time:.2f}s")
-
+                f"processed {i}/{N} images. time: {used_time:.2f}s, ETA: {eta:.2f}s. gpu_computing_postprocess_time={gpu_computing_post_time:.2f} gpu_computing_time={gpu_computing_time:.2f}s")
+        if i + 1 == N:
+            used_time = time.time() - start
+            print(
+                f'time cost per image: all={used_time/N:.4f} gpu_computing_postprocess_time={gpu_computing_post_time/N:.4f} gpu_computing_time={gpu_computing_time/N:.4f}s')
     evaluator.synchronize_between_processes()
     evaluator.accumulate()
     evaluator.summarize()
