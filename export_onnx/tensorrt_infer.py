@@ -25,7 +25,7 @@ def set_pdb(args):
         pdb.set_trace()
 
 
-def infer_single_image():
+def infer_single_image(args):
     '''
     "samples", "input_ids", "token_type_ids", "text_token_mask", "text_self_attention_masks", "position_ids"
     torch.Size([1, 3, 800, 1440])
@@ -35,30 +35,6 @@ def infer_single_image():
     torch.Size([1, 5, 5])
     torch.Size([1, 5])
     '''
-    import argparse
-    parser = argparse.ArgumentParser("Grounding DINO example", add_help=True)
-    parser.add_argument("--engine_path", "-m", type=pathlib.Path,
-                        required=True, help="path to config file")
-    parser.add_argument("--image_path", "-i", type=pathlib.Path,
-                        required=True, help="path to image file")
-    parser.add_argument("--text_prompt", "-t", type=str,
-                        required=True, help="text prompt")
-    parser.add_argument(
-        "--output_dir", "-o", type=pathlib.Path, default="outputs", required=True, help="output directory"
-    )
-
-    parser.add_argument("--box_threshold", type=float,
-                        default=0.3, help="box threshold")
-    parser.add_argument("--debug", type=int,
-                        default=0, help="use debug mode")
-    parser.add_argument("--text_threshold", type=float,
-                        default=0.25, help="text threshold")
-    parser.add_argument("--token_spans", type=str, default=None, help="The positions of start and end positions of phrases of interest. \
-                        For example, a caption is 'a cat and a dog', \
-                        if you would like to detect 'cat', the token_spans should be '[[[2, 5]], ]', since 'a cat and a dog'[2:5] is 'cat'. \
-                        if you would like to detect 'a cat', the token_spans should be '[[[0, 1], [2, 5]], ]', since 'a cat and a dog'[0:1] is 'a', and 'a cat and a dog'[2:5] is 'cat'. \
-                        ")
-    args = parser.parse_args()
 
     with open(args.engine_path, "rb") as engine_file:
         engine = engine_from_bytes(engine_file.read())
@@ -106,30 +82,8 @@ def infer_single_image():
         image_with_box.save(fname)
 
 
-def test_ap_on_coco():
+def test_ap_on_coco(args):
     from demo.test_ap_on_coco import CocoDetection, PostProcessCocoGrounding, load_model
-    import argparse
-    parser = argparse.ArgumentParser(
-        "Grounding DINO eval on COCO", add_help=True)
-    # load model
-    parser.add_argument("--engine_path", "-m", type=pathlib.Path,
-                        required=True, help="path to config file")
-    parser.add_argument("--device", type=str, default="cuda",
-                        help="running device (default: cuda)")
-
-    # post processing
-    parser.add_argument("--num_select", type=int, default=300,
-                        help="number of topk to select")
-
-    # coco info
-    parser.add_argument("--anno_path", type=str,
-                        required=True, help="coco root")
-    parser.add_argument("--image_dir", type=str,
-                        required=True, help="coco image dir")
-    parser.add_argument("--num_workers", type=int, default=4,
-                        help="number of workers for dataloader")
-    args = parser.parse_args()
-
     import torch
     from torch.utils.data import DataLoader
     from groundingdino.util.misc import clean_state_dict, collate_fn
@@ -230,4 +184,57 @@ def test_ap_on_coco():
 
 if __name__ == "__main__":
     # infer_single_image()
-    test_ap_on_coco()
+    # test_ap_on_coco()
+    import argparse
+
+    parser = argparse.ArgumentParser("Grounding DINO example", add_help=True)
+    # for infer_single_image
+    parser.add_argument("--engine_path", "-m", type=pathlib.Path,
+                        required=True, help="path to config file")
+    parser.add_argument("--image_path", "-i", type=pathlib.Path,
+                        required=False, help="path to image file")
+    parser.add_argument("--text_prompt", "-t", type=str,
+                        required=False, help="text prompt")
+    parser.add_argument(
+        "--output_dir", "-o", type=pathlib.Path, default="outputs", required=False, help="output directory"
+    )
+    parser.add_argument("--box_threshold", type=float,
+                        default=0.3, help="box threshold")
+    parser.add_argument("--debug", type=int,
+                        default=0, help="use debug mode")
+    parser.add_argument("--text_threshold", type=float,
+                        default=0.25, help="text threshold")
+    parser.add_argument("--token_spans", type=str, default=None, help="The positions of start and end positions of phrases of interest. \
+                        For example, a caption is 'a cat and a dog', \
+                        if you would like to detect 'cat', the token_spans should be '[[[2, 5]], ]', since 'a cat and a dog'[2:5] is 'cat'. \
+                        if you would like to detect 'a cat', the token_spans should be '[[[0, 1], [2, 5]], ]', since 'a cat and a dog'[0:1] is 'a', and 'a cat and a dog'[2:5] is 'cat'. \
+                        ")
+
+    # for test_ap_on_coco()
+    # parser.add_argument("--engine_path", "-m", type=pathlib.Path,
+    #                     required=True, help="path to config file") # defined in infer_single_image too.
+    parser.add_argument("--device", type=str, default="cuda",
+                        help="running device (default: cuda)")
+
+    # post processing
+    parser.add_argument("--num_select", type=int, default=300,
+                        help="number of topk to select")
+    # coco info
+    parser.add_argument("--anno_path", type=str,
+                        required=False, help="coco root")
+    parser.add_argument("--image_dir", type=str,
+                        required=False, help="coco image dir")
+    parser.add_argument("--num_workers", type=int, default=4,
+                        help="number of workers for dataloader")
+
+    args = parser.parse_args()
+
+    if args.image_path:
+        print(f'infer on single image')
+        infer_single_image(args)
+    elif args.anno_path and args.image_dir:
+        print(f'infer on coco dataset')
+        test_ap_on_coco(args)
+    else:
+        print(f'set image_path for single image inference')
+        print(f'or set anno_path and image_dir for coco dataset test')
