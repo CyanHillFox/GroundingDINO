@@ -145,7 +145,7 @@ def postprocess_boxes(logits: np.ndarray, boxes: np.ndarray, tokenizer,
             all_logits.append(logit_phr[filt_mask])
             if with_logits:
                 logit_phr_num = logit_phr[filt_mask]
-                all_phrases.extend([phrase + f"({str(logit.item())[:4]})" for logit in logit_phr_num])
+                all_phrases.extend([phrase + "({0:.4f})".format(logit) for logit in logit_phr_num])
             else:
                 all_phrases.extend([phrase for _ in range(len(filt_mask))])
         boxes_filt = torch.cat(all_boxes, dim=0).cpu()
