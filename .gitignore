@@ -144,3 +144,5 @@ grounding/version.py
 
 vis/
 tmp/
+
+/coco

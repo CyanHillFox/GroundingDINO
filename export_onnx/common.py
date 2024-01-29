@@ -66,15 +66,19 @@ def preprocess_caption(caption: str) -> str:
 
 def to_numpy(tensor):
     if isinstance(tensor, torch.Tensor):
-        return tensor.numpy()
+        return tensor.cpu().detach().numpy()
     elif isinstance(tensor, np.ndarray):
         return tensor
     raise ValueError("unahandled type {0}".format(type(tensor)))
 
 from groundingdino.models.GroundingDINO.bertwarper import generate_masks_with_special_tokens_and_transfer_map
 def preprocess_prompt(prompt: str, tokenizer: transformers.BertTokenizer):
-    prompt = preprocess_caption(prompt)
-    tokenized = tokenizer([prompt], padding="longest", return_tensors="pt").to('cpu')
+    if isinstance(prompt, str):
+        prompts = [prompt]
+    else:
+        prompts = prompt
+    prompts = [preprocess_caption(prompt) for prompt in prompts]
+    tokenized = tokenizer(prompts, padding="longest", return_tensors="pt").to('cpu')
     specical_tokens = tokenizer.convert_tokens_to_ids(["[CLS]", "[SEP]", ".", "?"])
     #preprocess
     (
