@@ -18,10 +18,6 @@ import groundingdino.datasets.transforms as T
 
 
 def evaluate(args):
-    # args.image_dir = r'/comp_robot/cv_public_dataset/COCO2017/val2017'
-    # args.anno_path = r'/comp_robot/cv_public_dataset/COCO2017/annotations/instances_val2017.json'
-    # args.out_dir = r'tmp'
-    # args.num_workers = 1
     transform = T.Compose(
         [
             T.RandomResize([(1280, 720)], max_size=1440),
@@ -52,10 +48,8 @@ def evaluate(args):
                 break
             with open(fp) as fi:
                 jd = json.load(fi)[str(image_id)]
-                # print(jd)
                 jd = {key: torch.tensor(val) for key, val in jd.items()}
                 cocogrounding_res[image_id] = jd
-        # print(f'i={i} len(coco_res)={len(cocogrounding_res)}')
         if len(cocogrounding_res) > 0:
             evaluator.update(cocogrounding_res)
             read_count += 1
@@ -70,9 +64,6 @@ def evaluate(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Grounding DINO example", add_help=True)
-    parser.add_argument("--num_select", type=int, default=300,
-                        help="number of topk to select")
-    # coco info
     parser.add_argument("--anno_path", type=str,
                         required=False, help="coco root")
     parser.add_argument("--image_dir", type=str,
