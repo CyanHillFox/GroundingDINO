@@ -11,6 +11,7 @@ from polygraphy.backend.trt import (
 )
 from polygraphy.logger import G_LOGGER
 import pathlib
+import json
 from common import load_image, preprocess_prompt, to_numpy, postprocess_boxes, plot_boxes_to_image
 import pdb
 
@@ -42,7 +43,7 @@ def infer_single_image(args):
     print("engine loaded")
     runner = TrtRunner(engine.create_execution_context())
     print("execution context created")
-    #with runner:
+    # with runner:
     if 1:
         prompt = args.text_prompt
         if not prompt.endswith('.'):
@@ -50,9 +51,9 @@ def infer_single_image(args):
         text_encoder_type = "bert-base-uncased"
         from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained(text_encoder_type)
-        
+
         t0 = time.time()
-        
+
         image_raw, image_tensor = load_image(args.image_path)
         image_tensor = image_tensor.unsqueeze(0)
         inputs = preprocess_prompt(prompt=prompt, tokenizer=tokenizer)
@@ -62,20 +63,20 @@ def infer_single_image(args):
         inputs = {name: convert_int64_to_int32(
             value) for name, value in inputs.items()}
         runner.activate()
-        inputs = {name: torch.tensor(value).cuda() for name, value in inputs.items()}
-        for i in range(5000):    
+        inputs = {name: torch.tensor(value).cuda()
+                  for name, value in inputs.items()}
+        for i in range(5000):
             runner.infer(inputs, copy_outputs_to_host=False)
             if i % 50 == 0:
                 t1 = time.time()
                 print(f'i={i} time={t1-t0:.2f} per-image={(t1-t0)/(i+1):.2f}')
-            
 
         logits = outputs['logits']
         boxes = outputs['boxes']
         boxes_filt, pred_phrases = postprocess_boxes(logits, boxes, tokenizer, prompt,
-                                                    box_threshold=args.box_threshold,
-                                                    text_threshold=args.text_threshold,
-                                                    token_spans=None)
+                                                     box_threshold=args.box_threshold,
+                                                     text_threshold=args.text_threshold,
+                                                     token_spans=None)
         # visualize pred
         size = image_raw.size
         pred_dict = {
@@ -100,7 +101,6 @@ def test_ap_on_coco(args):
     from groundingdino.util.misc import clean_state_dict, collate_fn
     from groundingdino.datasets.cocogrounding_eval import CocoGroundingEvaluator
     import groundingdino.datasets.transforms as T
-    
 
     # preprocessor.
     transform = T.Compose(
@@ -136,7 +136,7 @@ def test_ap_on_coco(args):
     # build evaluator
     evaluator = CocoGroundingEvaluator(
         dataset.coco, iou_types=("bbox",), useCats=True)
-    
+
     with runner:
         # run inference
         start = time.time()
@@ -146,17 +146,17 @@ def test_ap_on_coco(args):
         bs = 1
         input_captions = [caption] * bs
         inputs = {}
-        
+
         for i, (images, targets) in enumerate(data_loader):
             # get images and captions
-            images = images.tensors #.to(args.device)
-            #bs = images.shape[0]
+            images = images.tensors  # .to(args.device)
+            # bs = images.shape[0]
             inputs = preprocess_prompt(
                 prompt=input_captions, tokenizer=tokenizer)
             # feed to the model
             t0 = time.time()
             # actually prompt can be tokenized outside this for-loop
-            
+
             inputs["samples"] = images
             inputs = {name: to_numpy(value) for name, value in inputs.items()}
             # tensorrt doesn't support int64, so convert it to int32
@@ -164,22 +164,31 @@ def test_ap_on_coco(args):
                 value) for name, value in inputs.items()}
             outputs = None
             outputs = runner.infer(inputs, copy_outputs_to_host=True)
-            
+
             t1 = time.time()
             # map output tensor name, append 'pred_' prefix, and convert to torch.array
             # outputs = {f"pred_{name}": torch.from_numpy(value).to(
             #      args.device) for name, value in outputs.items()}
-            outputs = {f"pred_{name}": torch.from_numpy(value) for name, value in outputs.items()}
-            #del outputs
+            outputs = {f"pred_{name}": torch.from_numpy(
+                value) for name, value in outputs.items()}
+            # del outputs
             orig_target_sizes = torch.stack(
-               [t["orig_size"] for t in targets], dim=0).to(images.device)
+                [t["orig_size"] for t in targets], dim=0).to(images.device)
             results = postprocessor(outputs, orig_target_sizes)
             t2 = time.time()
-            
+
             cocogrounding_res = {
                 target["image_id"]: output for target, output in zip(targets, results)}
-            
-            evaluator.update(cocogrounding_res)
+
+            for target, output in zip(targets, results):
+                fname = os.path.join('tmp', f"im-{target['image_id']}.json")
+                output = {key: val.cpu().tolist()
+                          for key, val in output.items()}
+                dic = {target["image_id"]: output}
+                with open(fname, 'w') as fo:
+                    json.dump(dic, fo)
+
+            # evaluator.update(cocogrounding_res)
             del images, targets, outputs, cocogrounding_res
             gpu_computing_time += (t1 - t0)
             gpu_computing_post_time += (t2 - t0)
@@ -188,14 +197,15 @@ def test_ap_on_coco(args):
                 eta = N / (i+1e-5) * used_time - used_time
                 print(
                     f"processed {i}/{N} images. time: {used_time:.2f}s, ETA: {eta:.2f}s. gpu_computing_postprocess_time={gpu_computing_post_time:.2f} gpu_computing_time={gpu_computing_time:.2f}s")
-
+                if i > 0:
+                    break
             if i + 1 == N:
                 used_time = time.time() - start
                 print(
                     f'time cost per image: all={used_time/N:.4f} gpu_computing_postprocess_time={gpu_computing_post_time/N:.4f} gpu_computing_time={gpu_computing_time/N:.4f}s')
-        evaluator.synchronize_between_processes()
-        evaluator.accumulate()
-        evaluator.summarize()
+        # evaluator.synchronize_between_processes()
+        # evaluator.accumulate()
+        # evaluator.summarize()
 
         print("Final results:", evaluator.coco_eval["bbox"].stats.tolist())
 
