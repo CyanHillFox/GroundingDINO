@@ -1,7 +1,8 @@
 import numpy as np
 import datetime
 import os
-
+import json
+import torch
 from polygraphy.backend.trt import (
     CreateConfig,
     Profile,
@@ -148,38 +149,51 @@ def test_ap_on_coco(args):
             # tensorrt doesn't support int64, so convert it to int32
             inputs = {name: convert_int64_to_int32(
                 value) for name, value in inputs.items()}
-            outputs = runner.infer(inputs)
+            outputs = runner.infer(inputs, copy_outputs_to_host=True)
             t1 = time.time()
             # map output tensor name, append 'pred_' prefix, and convert to torch.array
-            outputs = {f"pred_{name}": torch.from_numpy(value).to(
-                args.device) for name, value in outputs.items()}
+            outputs = {f"pred_{name}": torch.from_numpy(
+                value) for name, value in outputs.items()}
 
             orig_target_sizes = torch.stack(
-                [t["orig_size"] for t in targets], dim=0).to(images.device)
+                [t["orig_size"] for t in targets], dim=0)
             results = postprocessor(outputs, orig_target_sizes)
             t2 = time.time()
 
             cocogrounding_res = {
                 target["image_id"]: output for target, output in zip(targets, results)}
-            evaluator.update(cocogrounding_res)
+            if args.out_dir:
+                for target, output in zip(targets, results):
+                    fname = os.path.join(
+                        args.out_dir, f"idx{i}-im{target['image_id']}.json")
+                    output = {key: val.cpu().tolist()
+                              for key, val in output.items()}
+                    dic = {target["image_id"]: output}
+                    with open(fname, 'w') as fo:
+                        json.dump(dic, fo)
+            else:
+                evaluator.update(cocogrounding_res)
 
+            del images, targets, outputs, cocogrounding_res
             gpu_computing_time += (t1 - t0)
             gpu_computing_post_time += (t2 - t0)
-            if (i+1) % 30 == 0:
+            if i % 5 == 0:
                 used_time = time.time() - start
                 eta = N / (i+1e-5) * used_time - used_time
                 print(
                     f"processed {i}/{N} images. time: {used_time:.2f}s, ETA: {eta:.2f}s. gpu_computing_postprocess_time={gpu_computing_post_time:.2f} gpu_computing_time={gpu_computing_time:.2f}s")
-
+                if i > 0:
+                    break
             if i + 1 == N:
                 used_time = time.time() - start
                 print(
                     f'time cost per image: all={used_time/N:.4f} gpu_computing_postprocess_time={gpu_computing_post_time/N:.4f} gpu_computing_time={gpu_computing_time/N:.4f}s')
-        evaluator.synchronize_between_processes()
-        evaluator.accumulate()
-        evaluator.summarize()
-
-        print("Final results:", evaluator.coco_eval["bbox"].stats.tolist())
+        if not args.out_dir:
+            evaluator.synchronize_between_processes()
+            evaluator.accumulate()
+            evaluator.summarize()
+            print("Final results with {N} images",
+                  evaluator.coco_eval["bbox"].stats.tolist())
 
 
 if __name__ == "__main__":
@@ -226,6 +240,8 @@ if __name__ == "__main__":
                         required=False, help="coco image dir")
     parser.add_argument("--num_workers", type=int, default=4,
                         help="number of workers for dataloader")
+    parser.add_argument("--out_dir", type=str, default=None,
+                        help="if set, the det result will be saved to the target dir")
 
     args = parser.parse_args()
 
@@ -234,6 +250,8 @@ if __name__ == "__main__":
         infer_single_image(args)
     elif args.anno_path and args.image_dir:
         print(f'infer on coco dataset')
+        if args.out_dir:
+            os.makedirs(args.out_dir, exist_ok=True)
         test_ap_on_coco(args)
     else:
         print(f'set image_path for single image inference')
