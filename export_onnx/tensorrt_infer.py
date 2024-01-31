@@ -177,13 +177,11 @@ def test_ap_on_coco(args):
             del images, targets, outputs, cocogrounding_res
             gpu_computing_time += (t1 - t0)
             gpu_computing_post_time += (t2 - t0)
-            if i % 5 == 0:
+            if i % 30 == 0:
                 used_time = time.time() - start
                 eta = N / (i+1e-5) * used_time - used_time
                 print(
                     f"processed {i}/{N} images. time: {used_time:.2f}s, ETA: {eta:.2f}s. gpu_computing_postprocess_time={gpu_computing_post_time:.2f} gpu_computing_time={gpu_computing_time:.2f}s")
-                if i > 0:
-                    break
             if i + 1 == N:
                 used_time = time.time() - start
                 print(
