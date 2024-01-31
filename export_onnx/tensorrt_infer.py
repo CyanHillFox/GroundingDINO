@@ -236,7 +236,7 @@ if __name__ == "__main__":
                         required=False, help="coco root")
     parser.add_argument("--image_dir", type=str,
                         required=False, help="coco image dir")
-    parser.add_argument("--num_workers", type=int, default=4,
+    parser.add_argument("--num_workers", type=int, default=1,
                         help="number of workers for dataloader")
     parser.add_argument("--out_dir", type=str, default=None,
                         help="if set, the det result will be saved to the target dir")
