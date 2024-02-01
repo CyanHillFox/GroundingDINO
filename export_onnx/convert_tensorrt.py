@@ -30,12 +30,14 @@ def main():
 
     profile = Profile()
     H, W = 720, 1280
-    min_seq_len, max_seq_len = 1, 64
+    # the max_text_len in grounding-dino model is 256, not sure how we can relax the limitation.
+    min_seq_len, max_seq_len = 1, 256 
     profile.add("samples", min=[1, 3, H, W], opt=[1, 3, H, W], max=[1, 3, H, W])
     profile.add("input_ids", min=[1, min_seq_len], opt=[1, max_seq_len], max=[1, max_seq_len])
     profile.add("token_type_ids", min=[1, min_seq_len], opt=[1, max_seq_len], max=[1, max_seq_len])
     profile.add("text_token_mask", min=[1, min_seq_len], opt=[1, max_seq_len], max=[1, max_seq_len])
-    profile.add("text_self_attention_masks", min=[1, min_seq_len, min_seq_len], opt=[1, max_seq_len, max_seq_len], max=[1, max_seq_len, max_seq_len])
+    profile.add("text_self_attention_masks", min=[1, min_seq_len, min_seq_len], 
+                opt=[1, max_seq_len, max_seq_len], max=[1, max_seq_len, max_seq_len])
     profile.add("position_ids", min=[1, min_seq_len], opt=[1, max_seq_len], max=[1, max_seq_len])
     profiles = [profile]
     build_config = CreateConfig(profiles=profiles,
