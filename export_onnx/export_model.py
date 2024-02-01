@@ -32,10 +32,9 @@ def load_model(model_config_path, model_checkpoint_path, device):
     _ = model.eval()
     return model
 
-
 def get_fake_inputs(model, device: Union[str, torch.device]):
     H, W = 720, 1280
-    image_f32 = torch.rand([1, 3, H, W], dtype=torch.float32, device=device)
+    image_fp = torch.rand([1, 3, H, W], dtype=torch.float32, device=device)
     prompt = ["a cat."]
     tokenized = model.tokenizer(
         prompt, padding="longest", return_tensors="pt").to(device)
@@ -50,7 +49,7 @@ def get_fake_inputs(model, device: Union[str, torch.device]):
     input_ids = tokenized.input_ids
     token_type_ids = tokenized.token_type_ids
     text_token_mask = tokenized.attention_mask
-    return image_f32, input_ids, token_type_ids, text_token_mask, text_self_attention_masks, position_ids
+    return image_fp, input_ids, token_type_ids, text_token_mask, text_self_attention_masks, position_ids
 
 
 class ModelWrapper(torch.nn.Module):
@@ -63,7 +62,8 @@ class ModelWrapper(torch.nn.Module):
 
 
 def export_model(model: torch.nn.Module, output_file: Union[str, pathlib.Path],
-                 device: Union[str, torch.device], opset_version: int = 17):
+                 device: Union[str, torch.device], opset_version: int=17,
+                 use_fp16=False,):
     from groundingdino.util.export_flag import ExportFlag
     fake_inputs = get_fake_inputs(model, device)
     # for item in fake_inputs:
@@ -72,7 +72,8 @@ def export_model(model: torch.nn.Module, output_file: Union[str, pathlib.Path],
     # with torch.no_grad(), ExportFlag(True):
     #     model(*fake_inputs)
     logger.info("exporting model")
-    with torch.no_grad(), ExportFlag(True):
+    with torch.no_grad(), ExportFlag(True),\
+         torch.cuda.amp.autocast(enabled=use_fp16, dtype=torch.float16):
         wrapped_model = ModelWrapper(model)
         torch.onnx.export(wrapped_model,
                           fake_inputs,
@@ -117,6 +118,7 @@ if __name__ == "__main__":
                         help="running on cpu only!, default=False")
     parser.add_argument("--opset", type=int, default=17,
                         help="the opset to export onnx model")
+    parser.add_argument("--use_fp16", action="store_true", help="enable amp fp16 when exporting model")
     args = parser.parse_args()
 
     if args.opset < 17:
@@ -146,7 +148,7 @@ if __name__ == "__main__":
     # load model
     model = load_model(config_file, checkpoint_path, device=device)
     model_path = os.path.join(output_dir, f"{model_name}_nosim.onnx")
-    export_model(model, model_path, device, opset_version=args.opset)
+    export_model(model, model_path, device, opset_version=args.opset, use_fp16=args.use_fp16)
     print("exported model to {}".format(model_path))
     del model
 

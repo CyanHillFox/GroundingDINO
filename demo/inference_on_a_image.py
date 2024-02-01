@@ -81,7 +81,8 @@ def load_model(model_config_path, model_checkpoint_path, cpu_only=False):
     return model
 
 
-def get_grounding_output(model, image, caption, box_threshold, text_threshold=None, with_logits=True, cpu_only=False, token_spans=None):
+def get_grounding_output(model, image, caption, box_threshold, text_threshold=None, with_logits=True,
+                         cpu_only=False, token_spans=None, use_fp16=False):
     assert text_threshold is not None or token_spans is not None, "text_threshould and token_spans should not be None at the same time!"
     caption = caption.lower()
     caption = caption.strip()
@@ -90,7 +91,11 @@ def get_grounding_output(model, image, caption, box_threshold, text_threshold=No
     device = "cuda" if not cpu_only else "cpu"
     model = model.to(device)
     image = image.to(device)
-    with torch.no_grad():
+    if use_fp16:
+        # model = model.to(torch.float16)
+        image = image.to(torch.float16)
+        print("inference in fp16")
+    with torch.no_grad(), torch.cuda.amp.autocast(enabled=use_fp16):
         outputs = model(image[None], captions=[caption])
     logits = outputs["pred_logits"].sigmoid()[0]  # (nq, 256)
     boxes = outputs["pred_boxes"][0]  # (nq, 4)
@@ -169,6 +174,7 @@ if __name__ == "__main__":
                         ")
 
     parser.add_argument("--cpu-only", action="store_true", help="running on cpu only!, default=False")
+    parser.add_argument("--use-fp16", action="store_true", help="running in fp16 precision, default=False")
     args = parser.parse_args()
 
     # cfg
@@ -199,7 +205,8 @@ if __name__ == "__main__":
 
     # run model
     boxes_filt, pred_phrases = get_grounding_output(
-        model, image, text_prompt, box_threshold, text_threshold, cpu_only=args.cpu_only, token_spans=eval(f"{token_spans}")
+        model, image, text_prompt, box_threshold, text_threshold, cpu_only=args.cpu_only,
+        token_spans=eval(f"{token_spans}"), use_fp16=args.use_fp16
     )
 
     # visualize pred

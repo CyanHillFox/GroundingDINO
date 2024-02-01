@@ -3,6 +3,8 @@ import datetime
 import os
 import json
 import torch
+import time
+
 from polygraphy.backend.trt import (
     CreateConfig,
     Profile,
@@ -59,6 +61,12 @@ def infer_single_image(args):
         inputs = {name: convert_int64_to_int32(
             value) for name, value in inputs.items()}
         outputs = runner.infer(inputs)
+        # performance timing
+        repeat = 10
+        start = time.time()
+        for _ in range(repeat):
+            runner.infer(inputs)
+        print("wall time of tensorrt model infer: {0:.2f}ms".format((time.time() - start) * 1000 / repeat))
 
         logits = outputs['logits']
         boxes = outputs['boxes']
