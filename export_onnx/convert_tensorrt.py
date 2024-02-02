@@ -8,6 +8,7 @@ from polygraphy.backend.trt import (
     save_engine,
 )
 from polygraphy.logger import G_LOGGER
+G_LOGGER.module_severity = {"": G_LOGGER.VERBOSE, "backend/trt": G_LOGGER.EXTRA_VERBOSE}
 import pathlib
 import tensorrt.tensorrt as trt
 
@@ -15,7 +16,7 @@ import re
 linear1_re = re.compile(R"/transformer/decoder/layers.\d+/linear1/.*")
 linear2_re = re.compile(R"/transformer/decoder/layers.\d+/linear2/.*")
 activation_re = re.compile(R"/transformer/decoder/layers.\d+/Relu")
-def need_fp32(layer):
+def is_transformer_ffn(layer):
     if layer.name and any([regex.match(layer.name) for regex in [linear1_re, activation_re, linear2_re]]) \
         and layer.type not in [trt.LayerType.CAST]:
         # transformer ffn should be fp32
@@ -63,7 +64,13 @@ def main():
     builder, network, parser = network_from_onnx_path(str(args.onnx_path))
     # set certain layers to fp32
     for layer in network:
-        if need_fp32(layer):
+        set_fp32 = False
+        if is_transformer_ffn(layer):
+            set_fp32 = True
+        if layer.type in [trt.LayerType.NORMALIZATION]:
+            set_fp32 = True
+            layer.set_output_type(0, trt.DataType.HALF)
+        if set_fp32:
             print("setting {0} to fp32".format(layer.name))
             layer.precision = trt.DataType.FLOAT
     build_config = CreateConfig(profiles=profiles,
