@@ -35,7 +35,7 @@ def load_model(model_config_path, model_checkpoint_path, device):
 def get_fake_inputs(model, device: Union[str, torch.device]):
     H, W = 720, 1280
     image_fp = torch.rand([1, 3, H, W], dtype=torch.float32, device=device)
-    prompt = ["a cat."]
+    prompt = ["cat."]
     tokenized = model.tokenizer(
         prompt, padding="longest", return_tensors="pt").to(device)
     from groundingdino.models.GroundingDINO.bertwarper import generate_masks_with_special_tokens_and_transfer_map
@@ -49,7 +49,9 @@ def get_fake_inputs(model, device: Union[str, torch.device]):
     input_ids = tokenized.input_ids
     token_type_ids = tokenized.token_type_ids
     text_token_mask = tokenized.attention_mask
-    return image_fp, input_ids, token_type_ids, text_token_mask, text_self_attention_masks, position_ids
+    results = image_fp, input_ids, token_type_ids, text_token_mask, text_self_attention_masks, position_ids
+    results = [tensor if (tensor.dtype != torch.int64) else tensor.to(torch.int32) for tensor in results]
+    return tuple(results)
 
 
 class ModelWrapper(torch.nn.Module):

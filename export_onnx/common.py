@@ -98,6 +98,8 @@ def preprocess_prompt(prompt: str, tokenizer: transformers.BertTokenizer):
               "text_token_mask": text_token_mask,
               "text_self_attention_masks": text_self_attention_masks,
               "position_ids": position_ids}
+    inputs = {name: value if value.dtype != torch.int64 else value.to(torch.int32)
+              for name, value in inputs.items()}
     return inputs
 
 from groundingdino.util.utils import get_phrases_from_posmap
