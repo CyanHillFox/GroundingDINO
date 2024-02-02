@@ -73,6 +73,9 @@ def export_model(model: torch.nn.Module, output_file: Union[str, pathlib.Path],
     # logger.info("try infer")
     # with torch.no_grad(), ExportFlag(True):
     #     model(*fake_inputs)
+    if use_fp16:
+        print("converting model to float16")
+        model = model.to(torch.float16)
     logger.info("exporting model")
     with torch.no_grad(), ExportFlag(True),\
          torch.cuda.amp.autocast(enabled=use_fp16, dtype=torch.float16):

@@ -92,7 +92,7 @@ def get_grounding_output(model, image, caption, box_threshold, text_threshold=No
     model = model.to(device)
     image = image.to(device)
     if use_fp16:
-        # model = model.to(torch.float16)
+        model = model.to(torch.float16)
         image = image.to(torch.float16)
         print("inference in fp16")
     with torch.no_grad(), torch.cuda.amp.autocast(enabled=use_fp16):
@@ -174,7 +174,7 @@ if __name__ == "__main__":
                         ")
 
     parser.add_argument("--cpu-only", action="store_true", help="running on cpu only!, default=False")
-    parser.add_argument("--use-fp16", action="store_true", help="running in fp16 precision, default=False")
+    parser.add_argument("--use_fp16", action="store_true", help="running in fp16 precision, default=False")
     args = parser.parse_args()
 
     # cfg

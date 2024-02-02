@@ -16,7 +16,8 @@ linear1_re = re.compile(R"/transformer/decoder/layers.\d+/linear1/.*")
 linear2_re = re.compile(R"/transformer/decoder/layers.\d+/linear2/.*")
 activation_re = re.compile(R"/transformer/decoder/layers.\d+/Relu")
 def need_fp32(layer):
-    if layer.name and any([regex.match(layer.name) for regex in [linear1_re, activation_re, linear2_re]]):
+    if layer.name and any([regex.match(layer.name) for regex in [linear1_re, activation_re, linear2_re]]) \
+        and layer.type not in [trt.LayerType.CAST]:
         # transformer ffn should be fp32
         return True
     # ipt = layer.get_input(0)

@@ -858,10 +858,9 @@ class DeformableTransformerDecoderLayer(nn.Module):
         return tensor if pos is None else tensor + pos
 
     def forward_ffn(self, tgt):
-        with torch.cuda.amp.autocast(enabled=False):
-            tgt2 = self.linear1(tgt)
-            tgt2 = self.activation(tgt2)
-            tgt2 = self.linear2(self.dropout3(tgt2))
+        tgt2 = self.linear1(tgt)
+        tgt2 = self.activation(tgt2)
+        tgt2 = self.linear2(self.dropout3(tgt2))
         tgt = tgt + self.dropout4(tgt2)
         tgt = self.norm3(tgt)
         return tgt
