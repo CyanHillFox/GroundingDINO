@@ -144,3 +144,8 @@ grounding/version.py
 
 vis/
 tmp/
+
+/coco
+/test
+/export_onnx/*.onnx
+/export_onnx/*.trtengine
